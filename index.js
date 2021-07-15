@@ -43,7 +43,7 @@ app.use('', createProxyMiddleware({
 
     var data = null;
 
-    if (proxyRes.headers['content-type'].includes('application/json')) {
+    if (proxyRes.headers['content-type'] !== undefined && proxyRes.headers['content-type'].includes('application/json')) {
       console.log("JSON");
       data = JSON.parse(responseBuffer.toString('utf8'));
 
