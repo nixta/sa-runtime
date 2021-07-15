@@ -226,6 +226,6 @@ function getOverrideTypeFor(toolName, parameterName, dataType, value) {
 }
 
 // Start the Proxy
-app.listen(PORT, HOST, () => {
+app.listen(PORT, () => {
   console.log(`Starting Proxy at ${HOST}:${PORT}`);
 });
