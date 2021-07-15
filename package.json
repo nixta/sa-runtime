@@ -1,0 +1,15 @@
+{
+  "name": "SAProxy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.17.1",
+    "http-proxy-middleware": "^2.0.1",
+    "morgan": "^1.10.0"
+  },
+  "repository": "https://github.com/nixta/sa-runtime",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
