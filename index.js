@@ -6,7 +6,7 @@ const { createProxyMiddleware, responseInterceptor } = require('http-proxy-middl
 const app = express();
 
 // Configuration
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const HOST = "localhost";
 const API_SERVICE_URL = "https://analysis.arcgis.com";
 
