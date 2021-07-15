@@ -75,7 +75,7 @@ app.use('', createProxyMiddleware({
 
         console.log(`Override: ${dataTypeOverride}`);
 
-        data = Object.assign({}, data, { "dataTypeOverride": dataTypeOverride });  
+        data = Object.assign({}, data, { "dataTypeOverride": dataTypeOverride }, { "dataType": dataTypeOverride });  
 
         // return manipulated JSON
         return JSON.stringify(data);
