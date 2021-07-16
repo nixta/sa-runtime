@@ -18,76 +18,109 @@ app.get('/nixta', (req, res, next) => {
   res.send('This is a proxy service which proxies to Billing and Account APIs.');
 });
 
-// // Authorization
-// app.use('', (req, res, next) => {
-//   if (req.headers.authorization) {
-//       next();
-//   } else {
-//       res.sendStatus(403);
-//   }
-// });
-
 // Proxy endpoints
 // app.use('/sa-runtime', createProxyMiddleware({
-app.use('', createProxyMiddleware({
-    target: API_SERVICE_URL,
+app.use(['override-only','', 'override-and-replace'], createProxyMiddleware({
+  target: API_SERVICE_URL,
   changeOrigin: true,
-  // pathRewrite: {
-  //     [`^/sa-runtime`]: '',
-  // },
+  pathRewrite: {
+      [`^/override-only`]: '',
+      [`^/override-and-replace`]: ''
+  },
   selfHandleResponse: true,
   onProxyRes: responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
-    // detect json responses
-    console.log(proxyRes.headers);
-    console.log(req.url);
-
-    var data = null;
-
-    if (proxyRes.headers['content-type'] !== undefined && proxyRes.headers['content-type'].includes('application/json')) {
-      console.log("JSON");
-      data = JSON.parse(responseBuffer.toString('utf8'));
-
-      // manipulate JSON data here
-      data = Object.assign({}, data, { "isMockService": true });  
-    } else {
-      console.log("NOT JSON");
-      return responseBuffer;
+    if (req.originalUrl.startsWith('/override-and-replace')) {
+      return fixDataType(responseBuffer, proxyRes, req, res, true, true)
     }
-
-    const match = req.url.match(/^\/arcgis\/rest\/services\/tasks\/GPServer\/([a-zA-Z]+)\/jobs\/[^\/]+\/results\/([a-zA-Z]+)/);
-    console.log(match);
-
-    if (match !== null) {
-      const toolName = match[1];
-      const parameterName = match[2];
-      console.log(toolName);
-      console.log(parameterName);
-
-      if (data !== null) {
-        console.log(data);
-
-        let dataType = data["dataType"];
-        let value = data["value"];
-
-        console.log(`${dataType} :: -->${value}<--`);
-
-        var dataTypeOverride = getOverrideTypeFor(toolName, parameterName, dataType, value);
-
-        console.log(`Override: ${dataTypeOverride}`);
-
-        data = Object.assign({}, data, { "dataTypeOverride": dataTypeOverride }, { "dataType": dataTypeOverride });  
-
-        // return manipulated JSON
-        return JSON.stringify(data);
-      }
-    } else {
-      console.log("no match");
-    }
-
-    // return other content-types as-is
-    return responseBuffer;
+    return fixDataType(responseBuffer, proxyRes, req, res, false, true)
   })
 }));
+
+function fixDataType(responseBuffer, proxyRes, req, res, replaceDataType, injectDataTypeOverride) {
+  // detect json responses
+  // console.log(proxyRes.headers);
+  // console.log(req.url);
+
+  var data = null;
+
+  if (proxyRes.headers['content-type'] !== undefined && proxyRes.headers['content-type'].includes('application/json')) {
+    console.log("JSON");
+    data = JSON.parse(responseBuffer.toString('utf8'));
+
+    // manipulate JSON data here
+    // data = Object.assign({}, data, { "isMockService": true });  
+  } else {
+    console.log("NOT JSON");
+    return responseBuffer;
+  }
+
+  const match = req.url.match(/^\/arcgis\/rest\/services\/tasks\/GPServer\/([a-zA-Z]+)\/jobs\/[^\/]+\/results\/([a-zA-Z]+)/);
+  // console.log(match);
+
+  if (match !== null) {
+    const toolName = match[1];
+    const parameterName = match[2];
+    console.log(toolName);
+    console.log(parameterName);
+
+    if (data !== null) {
+      console.log(data);
+
+      let dataType = data["dataType"];
+      let value = data["value"];
+
+      var dataTypeOverride = getOverrideTypeFor(toolName, parameterName, dataType, value);
+
+      console.log(`${dataType} --> ${dataTypeOverride} (value: "${value}")`);
+
+      if (injectDataTypeOverride) {
+        data = Object.assign({}, data, { "dataTypeOverride": dataTypeOverride });  
+      }
+
+      if (replaceDataType) {
+        data = Object.assign({}, data, { "dataType": dataTypeOverride });  
+      }
+
+      // return manipulated JSON
+      return JSON.stringify(data);
+    }
+  } else {
+    console.log("no match");
+  }
+
+  // return other content-types as-is
+  return responseBuffer;
+}
+
+function getOverrideTypeFor(toolName, parameterName, dataType, value) {
+  console.log(arguments);
+
+  // Special case. Empty values mean the parameter was not output, so do not override anything.
+  if (value === '') { 
+    return dataType;
+  }
+
+  // Try to find a match for tool and output parameter
+  let toolParameters = typeLookups[toolName.toLowerCase()];
+  console.log("Found Tool!");
+  console.log(toolParameters);
+  if (toolParameters !== undefined) {
+    let dataTypeOverride = toolParameters[parameterName.toLowerCase()];
+
+    if (dataTypeOverride !== undefined) {
+      // Found a match. Return the override type.
+      return dataTypeOverride;
+    }
+  }
+
+  // No override found. Return the original type.
+  return dataType;
+}
+
+// Start the Proxy
+app.listen(PORT, () => {
+  console.log(`Starting Proxy at ${HOST}:${PORT}`);
+});
 
 const typeLookups = {
   "aggregatepoints": {
@@ -203,29 +236,3 @@ const typeLookups = {
       "tracelayer": "GPFeatureRecordSetLayer"
     }
 };
-
-function getOverrideTypeFor(toolName, parameterName, dataType, value) {
-  console.log(arguments);
-
-  if (value === '') { 
-    return dataType;
-  }
-
-  let toolParameters = typeLookups[toolName.toLowerCase()];
-  console.log("Found Tool!");
-  console.log(toolParameters);
-  if (toolParameters !== undefined) {
-    let dataTypeOverride = toolParameters[parameterName.toLowerCase()];
-
-    if (dataTypeOverride !== undefined) {
-      return dataTypeOverride;
-    }
-  }
-
-  return dataType;
-}
-
-// Start the Proxy
-app.listen(PORT, () => {
-  console.log(`Starting Proxy at ${HOST}:${PORT}`);
-});
